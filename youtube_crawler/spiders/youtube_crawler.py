@@ -2,6 +2,8 @@ import scrapy
 from scrapy.crawler import CrawlerProcess
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from datetime import datetime, timedelta
+from os import path
 import cPickle as pickle
 import re
 import time
@@ -15,22 +17,39 @@ def search_phrases(search_phrase_file):
     return ['https://www.youtube.com/results?search_query=' + x.strip().replace(' ', '+') for x in search_phrase]
 
 
+def file_check(file_path):
+    try:
+        open(file_path, 'r')
+        return 1
+    except IOError:
+        open(file_path, 'w')
+        return 0
+
+
 class ProxySpider(scrapy.Spider):
     name = 'proxy'
-    start_urls = ['http://spys.one/en/proxy-by-country/']
+    start_urls = []
     proxy_pool = []
     no_of_pxy_countries = 10
     country_index = 0
     driver = None
 
     def __init__(self, *args, **kwargs):
-    	# clear out start urls initially
-    	# check to see if recent pickle file exists
-    	# if so, just read it and return
-    	# else open firefox and then call the super init
-        if driver is None:
-	        driver = webdriver.Firefox()
-	    super(ProxySpider, self).__init__(*args, **kwargs)
+        if file_check('../../my_proxies.txt'):
+            filetime = datetime.fromtimestamp(path.getmtime('../../my_proxies.txt'))
+            five_days_ago = datetime.now() - timedelta(days=5)
+            if filetime < five_days_ago:
+                print(filetime)
+                print(five_days_ago)
+                self.start_urls.append('http://spys.one/en/proxy-by-country/')
+            else:
+                return
+        else:
+            self.start_urls.append('http://spys.one/en/proxy-by-country/')
+
+        if self.driver is None:
+            self.driver = webdriver.Firefox()
+        super(ProxySpider, self).__init__(*args, **kwargs)
 
     def parse(self, response):
         proxy_countries = response.xpath("//a[contains(@title, 'proxy servers list') and contains(@href, 'free-proxy-list')]/@href").extract()
@@ -45,7 +64,9 @@ class ProxySpider(scrapy.Spider):
         country_code = url[-3:-1]
 
         driver = self.driver
+
         driver.get(url=url)
+        driver.find_element_by_xpath("//*[@id='xpp']/option[@value='5']").click()
         driver.find_element_by_xpath("//body").send_keys(Keys.CONTROL, "a")
         driver.find_element_by_xpath("//body").send_keys(Keys.CONTROL, "c")
 
@@ -74,11 +95,10 @@ class YoutubeSpider(scrapy.Spider):
     random.seed()
 
     def __init__(self, *args, **kwargs):
-	    with open('../../my_proxies.txt', "rb") as file:
-	    	# load this from proxyspider
-	        self.proxy_pool = pickle.load(file)
-	        file.close()
-	    print(self.proxy_pool)
+        with open('../../my_proxies.txt', "rb") as f: # load this from proxyspider
+            self.proxy_pool = pickle.load(f)
+            f.close()
+        print(self.proxy_pool)
         super(YoutubeSpider, self).__init__(*args, **kwargs)
 
     def get_request(self, url, proxy_pool_index, page_number):
@@ -92,7 +112,7 @@ class YoutubeSpider(scrapy.Spider):
         return req
 
     def start_requests(self):
-        print('our countries include: {}'.format(self.proxy_pool[proxy_pool_index][-1]))
+        #print('our countries include: {}'.format(self.proxy_pool[proxy_pool_index][-1]))
         urls = search_phrases('../../read_file.txt')
         random.seed()
         for proxy_pool_index in range(0, len(self.proxy_pool)):
@@ -130,7 +150,7 @@ class YoutubeSpider(scrapy.Spider):
 
         page_number = response.meta.get('page_number')
 
-        filename = '../../yt_scraped_files/youtube_{}_{}.txt'.format(search_word, country)
+        filename = '../../yt_scraped_files/youtube_{}_{}_{}.txt'.format(search_word, country, page_number)
 
         with open('../../yt_scraped_files/scraped_urls.txt', "a") as my_file:
                 my_file.write(response.url + '\n')
@@ -147,21 +167,15 @@ class YoutubeSpider(scrapy.Spider):
         with open(yt_nextpage_codes, 'r') as f:
             next_pages_urls = ['https://www.youtube.com/results?search_query=' + search_word + f.strip() for f in f.readlines()]
 
-        # this is to ensure that the response os the next pages are in the correct order
         if page_number < self.no_of_pgs_to_scrape:
-            print("lis of urls: {}".format(next_pages_urls))
+            print("list of urls: {}".format(next_pages_urls))
             print("the list is {} long".format(len(next_pages_urls)))
-            if page_number is None:
-                print("trynna acces this: {}".format(page_number-1))
             next_page_url = next_pages_urls[page_number-1]
-            if proxy_pool_index is None or next_page_url is None:
-                print('stop')
             yield self.get_request(url=next_page_url, proxy_pool_index=proxy_pool_index, page_number=page_number+1)
 
+
 if __name__ == '__main__':
-	process = CrawlerProcess()
-
-	process.crawl(ProxySpider)
-#	process.crawl(YoutubeSpider)
-
-	process.start()
+    process = CrawlerProcess()
+    process.crawl(ProxySpider)
+    process.crawl(YoutubeSpider)
+    process.start()
