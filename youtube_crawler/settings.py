@@ -14,7 +14,7 @@ BOT_NAME = 'youtube_crawler'
 SPIDER_MODULES = ['youtube_crawler.spiders']
 NEWSPIDER_MODULE = 'youtube_crawler.spiders'
 
-RETRY_TIMES = 2
+RETRY_TIMES = 1
 RETRY_HTTP_CODES = [302, 503, 504, 400, 404, 408]
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent

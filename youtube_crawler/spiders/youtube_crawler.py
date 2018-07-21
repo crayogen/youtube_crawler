@@ -7,6 +7,7 @@ from os import path
 import cPickle as pickle
 import re
 import time
+import glob
 import random
 import pyperclip
 
@@ -24,6 +25,25 @@ def file_check(file_path):
     except IOError:
         open(file_path, 'w')
         return 0
+
+
+def file_concatonation(dir):
+    file_dirs = (glob.glob('..\..\yt_scraped_files\*.txt'))
+    page_numbers = re.findall('_(\d{1,2}).txt-', '-'.join(file_dirs))
+    max_pg_no = max(page_numbers)
+
+    with open('../../read_file.txt', 'r') as f:
+        search_phrases = f.readlines()
+
+    for search_phrase in search_phrases:
+        for i in range(max_pg_no + 1)
+            with open()
+
+    #filenames = ['file1.txt', 'file2.txt', ...]
+    # open('path/to/output/file', 'w') as outfile:
+    #    for fname in filenames:
+    #        with open(fname) as infile:
+    #            outfile.write(infile.read())
 
 
 class ProxySpider(scrapy.Spider):
@@ -88,9 +108,13 @@ class ProxySpider(scrapy.Spider):
 
 class YoutubeSpider(scrapy.Spider):
     name = 'youtube'
+    yt_nextpage_codes = ['', '&sp=SADqAwA%253D', '&sp=SBTqAwA%253D', '&sp=SCjqAwA%253D', '&sp=SDzqAwA%253D', '&sp=SFDqAwA%253D', '&sp=SGTqAwA%253D',
+                         '&sp=SHjqAwA%253D', '&sp=SIwB6gMA&amp', '&sp=SKAB6gMA&amp', '&sp=SLQB6gMA&amp', '&sp=SMgB6gMA&amp', '&sp=SNwB6gMA&amp',
+                         '&sp=SPAB6gMA', '&sp=SIQC6gMA', '&sp=SJgC6gMA', '&sp=SKwC6gMA', '&sp=SMAC6gMA', '&sp=SNQC6gMA', '&sp=SOgC6gMA', '&sp=SPwC6gMA']
+
     allowed_domains = ['youtube.com']
     delay = 3
-    no_of_pgs_to_scrape = 2
+    no_pgs_to_scrape = 2
     proxy_pool = []
     random.seed()
 
@@ -107,20 +131,24 @@ class YoutubeSpider(scrapy.Spider):
             req.meta['proxy'] = random.choice(self.proxy_pool[proxy_pool_index][:-1])
             req.meta['proxy_pool_index'] = proxy_pool_index
             print('get request: {}'.format(proxy_pool_index))
-        req.meta['dont_redirect'] = True
+        req.meta['dont_retry'] = True
         req.meta['page_number'] = page_number
         return req
 
     def start_requests(self):
         #print('our countries include: {}'.format(self.proxy_pool[proxy_pool_index][-1]))
+
         urls = search_phrases('../../read_file.txt')
+
         random.seed()
         for proxy_pool_index in range(0, len(self.proxy_pool)):
             for url in urls:
                 print(proxy_pool_index)
                 print(len(self.proxy_pool))
                 print('and: {}'.format(self.proxy_pool[proxy_pool_index][-1]))
-                yield self.get_request(url=url, proxy_pool_index=proxy_pool_index, page_number=1)
+                for nextpage_code_index in range(0, self.no_pgs_to_scrape):
+                    my_url = url + self.yt_nextpage_codes[nextpage_code_index]
+                    yield self.get_request(url=my_url, proxy_pool_index=proxy_pool_index, page_number=nextpage_code_index+1)
             # yield self.get_request(url=url, proxy_pool_index=proxy_pool_index, page_number=1)
 
     def make_new_request(self, failure):
@@ -163,19 +191,10 @@ class YoutubeSpider(scrapy.Spider):
                 my_file.write('https://www.youtube.com' + s + '\n')
                 my_file.close()
 
-        yt_nextpage_codes = '../../codes.txt'
-        with open(yt_nextpage_codes, 'r') as f:
-            next_pages_urls = ['https://www.youtube.com/results?search_query=' + search_word + f.strip() for f in f.readlines()]
-
-        if page_number < self.no_of_pgs_to_scrape:
-            print("list of urls: {}".format(next_pages_urls))
-            print("the list is {} long".format(len(next_pages_urls)))
-            next_page_url = next_pages_urls[page_number-1]
-            yield self.get_request(url=next_page_url, proxy_pool_index=proxy_pool_index, page_number=page_number+1)
-
 
 if __name__ == '__main__':
     process = CrawlerProcess()
     process.crawl(ProxySpider)
-    process.crawl(YoutubeSpider)
+    #process.crawl(YoutubeSpider)
     process.start()
+    file_concatonation('../../yt_scraped_files/*txt')
